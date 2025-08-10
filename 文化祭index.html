@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- スマホ対応 -->
+<title>予約ページ</title>
+<style>
+body {
+  font-family: sans-serif;
+  padding: 20px;
+  text-align: center;
+  font-size: 18px;
+}
+#count {
+  font-size: 56px;
+  margin-bottom: 30px;
+}
+@media (max-width: 600px) {
+  body {
+    font-size: 20px;
+  }
+  #count {
+    font-size: 64px;
+  }
+}
+button {
+  font-size: 18px;
+  padding: 10px 20px;
+}
+input[type=number] {
+  font-size: 18px;
+  width: 60px;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+
+<h1>予約システム</h1>
+
+<div id="count">現在の待ち人数: 読み込み中...</div>
+
+人数（1〜3人）: <input type="number" id="people" min="1" max="3" value="1" />
+<button id="reserveBtn" onclick="reserve()">予約する</button>
+
+<div id="result" style="margin-top:20px;"></div>
+
+<script>
+const GAS_URL = "https://script.google.com/macros/s/AKfycbzL65Vj8rVdbU8p1-qS6JfKQSMmJPtn1g7EBckU3WAWpeQ_TJWszStuCvDLsbQVNitz/exec";  //
+
+async function loadCount() {
+  try {
+    const res = await fetch(GAS_URL);
+    const data = await res.json();
+    document.getElementById("count").innerText = `現在の待ち人数: ${data.count} 人`;
+  } catch(e) {
+    document.getElementById("count").innerText = "待ち人数の読み込み失敗";
+  }
+}
+
+// ページ読み込み時にlocalStorageから予約情報を復元
+window.onload = function() {
+  loadCount();
+
+  const myNumber = localStorage.getItem("myReservationNumber");
+  if (myNumber) {
+    document.getElementById("result").innerHTML = 
+      `予約完了！受付番号: <b>${myNumber}</b><br>
+       キャンセルする場合は <button onclick="cancel(${myNumber})">ここをクリック</button>`;
+    document.getElementById("reserveBtn").style.display = "none";
+  }
+};
+
+async function reserve() {
+  const peopleInput = document.getElementById("people");
+  const people = parseInt(peopleInput.value);
+  if (isNaN(people) || people < 1 || people > 3) {
+    alert("予約人数は1〜3人の範囲で入力してください");
+    peopleInput.value = 1;
+    return;
+  }
+
+  try {
+    const res = await fetch(GAS_URL, {
+      method: "POST",
+      body: JSON.stringify({ action: "reserve", people: people })
+    });
+    const data = await res.json();
+
+    if (data.error) {
+      alert(data.error);
+      return;
+    }
+
+    document.getElementById("result").innerHTML =
+      `予約完了！受付番号: <b>${data.number}</b><br>
+       キャンセルする場合は <button onclick="cancel(${data.number})">ここをクリック</button>`;
+
+    document.getElementById("reserveBtn").style.display = "none";
+
+    localStorage.setItem("myReservationNumber", data.number);
+
+    loadCount();
+  } catch(e) {
+    alert("予約に失敗しました");
+  }
+}
+
+async function cancel(number) {
+  try {
+    await fetch(GAS_URL, {
+      method: "POST",
+      body: JSON.stringify({ action: "cancel", number: number })
+    });
+    alert("キャンセルしました");
+    document.getElementById("result").innerHTML = "";
+    document.getElementById("reserveBtn").style.display = "inline-block";
+
+    localStorage.removeItem("myReservationNumber");
+
+    loadCount();
+  } catch(e) {
+    alert("キャンセルに失敗しました");
+  }
+}
+
+setInterval(loadCount, 5000);
+</script>
+
+</body>
+</html>
